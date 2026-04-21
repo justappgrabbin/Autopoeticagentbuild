@@ -34,6 +34,67 @@ export class UnifiedResonanceAgent {
     return `dyad_${Math.abs(hash)}`;
   }
 
+  // Add to UnifiedResonanceAgent class
+
+  async uploadToLibrary(fileOrText, options = {}) {
+    const formData = new FormData();
+    
+    if (typeof fileOrText === 'string') {
+      // Pasted text
+      const response = await fetch('/api/library/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: fileOrText,
+          filename: options.filename || 'pasted_knowledge',
+          dyadId: this.dyadId,
+          type: options.type || 'pasted_text'
+        })
+      });
+      return response.json();
+    } else {
+      // File object
+      formData.append('file', fileOrText);
+      formData.append('dyadId', this.dyadId);
+      
+      const response = await fetch('/api/library/upload', {
+        method: 'POST',
+        body: formData
+      });
+      return response.json();
+    }
+  }
+
+  async queryLibrary(query, topK = 5) {
+    const response = await fetch('/api/library/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, dyadId: this.dyadId, topK })
+    });
+    return response.json();
+  }
+
+  async applyKnowledgeGap(gapId, sourceFile) {
+    const response = await fetch('/api/library/apply-gap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gapId, fileName: sourceFile, dyadId: this.dyadId })
+    });
+    
+    const result = await response.json();
+    if (result.applied) {
+      // Record in agent's knowledge graph
+      this.aspiration.satisfyItch(
+        { domain: 'library', topic: 'gap_resolution', entropy: 0.5, humanUrgency: 0.8 },
+        { gapId, source: sourceFile },
+        0.9,
+        0.9
+      );
+    }
+    
+    return result;
+  }
+  
   async boot(dyadConfig) {
     this.config = dyadConfig;
     this.dyadId = this.hashDyad(dyadConfig);
